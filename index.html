@@ -2,10 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Browser Storage & Cache Test</title>
-
-  <!-- Cacheable resource for FUNC-043 -->
-  <link rel="stylesheet" href="style.css">
+  <title>Core Browser Storage & Cache Tests</title>
 
   <style>
     body {
@@ -15,106 +12,167 @@
       padding: 40px;
     }
 
+    h1 {
+      margin-bottom: 30px;
+    }
+
     h2 {
       margin-top: 40px;
     }
 
     button {
-      margin-right: 10px;
       margin-top: 10px;
-      padding: 8px 14px;
+      margin-right: 10px;
+      padding: 8px 16px;
       cursor: pointer;
     }
 
     .box {
-      margin-top: 10px;
-      padding: 10px;
+      margin-top: 12px;
+      padding: 12px;
       background: #111;
       border: 1px solid #444;
-      min-height: 20px;
+      min-height: 24px;
     }
   </style>
 </head>
+
 <body>
 
-  <h1>Browser Core Storage Test</h1>
+  <h1>Core Browser Functional Tests</h1>
 
-  <!-- ================= FUNC-041 ================= -->
+  <!-- ========================================================= -->
+  <!-- FUNC-041 : sessionStorage                                 -->
+  <!-- ========================================================= -->
+
   <h2>FUNC-041 — sessionStorage</h2>
 
   <button onclick="storeSession()">Store session value</button>
-  <button onclick="clearSession()">Clear session</button>
+  <button onclick="clearSession()">Clear session value</button>
 
-  <div id="sessionBox" class="box"></div>
+  <div id="sessionBox" class="box">No session value</div>
 
-  <!-- ================= FUNC-042 ================= -->
+  <!-- ========================================================= -->
+  <!-- FUNC-042 : IndexedDB                                      -->
+  <!-- ========================================================= -->
+
   <h2>FUNC-042 — IndexedDB</h2>
 
   <button onclick="writeDB()">Write IndexedDB</button>
   <button onclick="readDB()">Read IndexedDB</button>
   <button onclick="clearDB()">Clear IndexedDB</button>
 
-  <div id="dbBox" class="box"></div>
+  <div id="dbBox" class="box">No IndexedDB data</div>
 
-  <!-- ================= FUNC-043 ================= -->
+  <!-- ========================================================= -->
+  <!-- FUNC-043 : Cache behavior                                 -->
+  <!-- ========================================================= -->
+
   <h2>FUNC-043 — Cache behavior</h2>
 
-  <div id="cacheBox" class="box">
-    If this page reloads fast and does NOT refetch static assets, cache works.
-  </div>
+  <button onclick="loadCacheData()">Load data</button>
+  <button onclick="clearCache()">Clear cache</button>
+
+  <div id="cacheBox" class="box">No cache activity</div>
 
   <script>
-    /* ================= FUNC-041: sessionStorage ================= */
+    /* =========================================================
+       FUNC-041 — sessionStorage
+       ========================================================= */
+
     function storeSession() {
-      sessionStorage.setItem("func041", "session_value");
+      sessionStorage.setItem("FUNC041_KEY", "session_value");
       updateSessionBox();
     }
 
     function clearSession() {
-      sessionStorage.removeItem("func041");
+      sessionStorage.removeItem("FUNC041_KEY");
       updateSessionBox();
     }
 
     function updateSessionBox() {
+      const value = sessionStorage.getItem("FUNC041_KEY");
       document.getElementById("sessionBox").innerText =
-        sessionStorage.getItem("func041") || "No session value";
+        value ? "Stored value: " + value : "No session value";
     }
 
     updateSessionBox();
 
-    /* ================= FUNC-042: IndexedDB ================= */
+    /* =========================================================
+       FUNC-042 — IndexedDB
+       ========================================================= */
+
     let db;
+    const dbRequest = indexedDB.open("FUNC042_DB", 1);
 
-    const request = indexedDB.open("FUNC042_DB", 1);
-
-    request.onupgradeneeded = event => {
+    dbRequest.onupgradeneeded = event => {
       db = event.target.result;
       db.createObjectStore("data", { keyPath: "id" });
     };
 
-    request.onsuccess = event => {
+    dbRequest.onsuccess = event => {
       db = event.target.result;
     };
 
     function writeDB() {
       const tx = db.transaction("data", "readwrite");
       tx.objectStore("data").put({ id: 1, value: "indexeddb_value" });
-      document.getElementById("dbBox").innerText = "Data written to IndexedDB";
+      document.getElementById("dbBox").innerText =
+        "IndexedDB write complete";
     }
 
     function readDB() {
       const tx = db.transaction("data", "readonly");
       const req = tx.objectStore("data").get(1);
+
       req.onsuccess = () => {
         document.getElementById("dbBox").innerText =
-          req.result ? req.result.value : "No IndexedDB data";
+          req.result
+            ? "IndexedDB value: " + req.result.value
+            : "No IndexedDB data";
       };
     }
 
     function clearDB() {
       const tx = db.transaction("data", "readwrite");
       tx.objectStore("data").clear();
-      document.getElementById("dbBox").innerText = "IndexedDB cleared";
+      document.getElementById("dbBox").innerText =
+        "IndexedDB cleared";
+    }
+
+    /* =========================================================
+       FUNC-043 — Cache behavior
+       ========================================================= */
+
+    const CACHE_NAME = "FUNC043_CACHE";
+    const CACHE_KEY = "/func043-data";
+
+    async function loadCacheData() {
+      const cache = await caches.open(CACHE_NAME);
+      const cachedResponse = await cache.match(CACHE_KEY);
+
+      if (cachedResponse) {
+        const text = await cachedResponse.text();
+        document.getElementById("cacheBox").innerText =
+          "Loaded from cache: " + text;
+        return;
+      }
+
+      const response = new Response(
+        "cache_test_payload",
+        { headers: { "Content-Type": "text/plain" } }
+      );
+
+      await cache.put(CACHE_KEY, response.clone());
+
+      document.getElementById("cacheBox").innerText =
+        "Fetched from network: cache_test_payload";
+    }
+
+    async function clearCache() {
+      await caches.delete(CACHE_NAME);
+      document.getElementById("cacheBox").innerText =
+        "Cache cleared";
     }
   </script>
 
